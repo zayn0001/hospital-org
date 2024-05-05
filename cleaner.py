@@ -3,7 +3,7 @@ import pandas as pd
 import warnings
 warnings.filterwarnings('ignore')
 import numpy as np
-
+from datetime import datetime
 
 # %%
 
@@ -32,6 +32,8 @@ def excel_to_dataframes(uploaded_file, sheetnames):
         df = df.reset_index(drop=True)
         for col in df.columns:
             df[f'{col}-VALIDATE'] = True
+        df['SHIFT START'] = np.nan
+        df['SHIFT END'] = np.nan
         dfs_dict[sheet_name] = df
     
     return dfs_dict
@@ -45,7 +47,7 @@ def validate_date(df):
         try:
             # Attempt to parse the date value using the specified format
             date = pd.to_datetime(row['DATE'])
-            df.at[index, 'DATE'] = date.strftime('%A, %d %B %Y')
+            df.at[index, 'DATE'] = date.strftime('%Y-%m-%d')
             df.at[index, 'DATE-VALIDATE'] = True
         except ValueError:
             # If parsing fails, append False to the validation list
@@ -61,18 +63,32 @@ def validate_shift(df):
     indices = []
     for index, row in df.iterrows():
         shift_value = row['SHIFT']
-        # Check if the shift value is in the format "HHMM-HHMM"
-        shift_value = "".join(shift_value.strip().split(" "))
-        if not isinstance(shift_value, str) or not len(shift_value) == 9 or not shift_value[4] == '-':
-            # If the shift value is not in the correct format, set shift-validate to False for this row
+        
+        # Clean the shift value and split it into start and end times
+        try:
+            shift_value = "".join(shift_value.strip().split(" "))
+            shift_start = shift_value[:4]
+            shift_end = shift_value[5:]
+            
+            # Check if the shift value is in the correct format
+            if not isinstance(shift_value, str) or not len(shift_value) == 9 or not shift_value[4] == '-':
+                # If the shift value is not in the correct format, set shift-validate to False for this row
+                df.at[index, 'SHIFT-VALIDATE'] = False
+                indices.append(index)
 
+            else:
+                # If the shift value is in the correct format, set shift-validate to True for this row
+                df.at[index, 'SHIFT-VALIDATE'] = True
+                
+                df.at[index, 'SHIFT START'] = datetime.strptime(shift_start, "%H%M").time()
+                df.at[index, 'SHIFT END'] = datetime.strptime(shift_end, "%H%M").time()
+                # Set the 'SHIFT START' and 'SHIFT END' values
+
+        except:
             df.at[index, 'SHIFT-VALIDATE'] = False
             indices.append(index)
-        else:
-            # If the shift value is in the correct format, set shift-validate to True for this row
-            df.at[index, 'SHIFT-VALIDATE'] = True
-    
-    return df, indices
+
+    return df,indices
 
 # %%
 def validate_hours(df):
@@ -100,7 +116,7 @@ def validate_hours(df):
                 #df.at[index, 'HOURS'] = hours_worked
                 indices.append(index)
                 # Set hours-validate to False for this row
-                df.at[index, 'HOURS-VALIDATE'] = False
+                df.at[index, 'COST-VALIDATE'] = False
             else:
                 # If the calculated hours match, set hours-validate to True for this row
                 df.at[index, 'HOURS-VALIDATE'] = True
@@ -113,18 +129,21 @@ def validate_rate(df):
     # Iterate through each row in the dataframe
     indices = []
     for index, row in df.iterrows():
-        rate_value = row['RATE']
-        cost_value = row['COST']
-        hours_value = row['HOURS']
-        
-        # Check if rate equals cost and hours is not equal to 1
-        if rate_value == cost_value or type(rate_value)!=type(cost_value):
-            # If rate equals cost but hours is not 1, set rate-validate to False for this row
+        try:
+            rate_value = row['RATE']
+            cost_value = row['COST']
+            
+            # Check if rate equals cost and hours is not equal to 1
+            if rate_value == cost_value or type(rate_value)!=type(cost_value):
+                # If rate equals cost but hours is not 1, set rate-validate to False for this row
+                indices.append(index)
+                df.at[index, 'RATE-VALIDATE'] = False
+            else:
+                # Otherwise, set rate-validate to True for this row
+                df.at[index, 'RATE-VALIDATE'] = True
+        except:
             indices.append(index)
             df.at[index, 'RATE-VALIDATE'] = False
-        else:
-            # Otherwise, set rate-validate to True for this row
-            df.at[index, 'RATE-VALIDATE'] = True
     
     return df,indices
 
@@ -132,16 +151,20 @@ def validate_rate(df):
 def validate_cost(df):
     indices = []
     for index, row in df.iterrows():
-        rate_value = row['RATE']
-        hours_value = row['HOURS']
-        cost_value = row['COST']
-        
-        expected_cost = rate_value * hours_value
-        if expected_cost != cost_value:
+        try:
+            rate_value = row['RATE']
+            hours_value = row['HOURS']
+            cost_value = row['COST']
+            
+            expected_cost = rate_value * hours_value
+            if expected_cost != cost_value:
+                indices.append(index)
+                df.at[index, 'COST-VALIDATE'] = False
+            else:
+                df.at[index, 'COST-VALIDATE'] = True
+        except:
             indices.append(index)
             df.at[index, 'COST-VALIDATE'] = False
-        else:
-            df.at[index, 'COST-VALIDATE'] = True
     
     return df, indices
 
@@ -210,7 +233,7 @@ def validate_units(df):
     
     return df, indices
 
-validations = [validate_date, validate_hours, validate_rate, validate_cost, validate_hours, validate_roles, validate_oncall, validate_units]
+validations = [validate_date, validate_hours, validate_rate, validate_cost, validate_hours, validate_roles, validate_oncall, validate_units, validate_shift]
 
 def validate_all(dfdict):
     validated = dfdict
@@ -229,7 +252,7 @@ def newindex(dfdict):
         # Shorten the date and concatenate the sheet name with it
         sheetname_abr = "".join([x[0:3] for x in sheet_name.split(" ")])
         sheetname_abrs.append(sheetname_abr)
-        df['SERIAL NO'] = sheetname_abr + pd.to_datetime(df['DATE']).dt.strftime('%y%m%d') + df['SHIFT'].astype(str).str.replace("-", "")
+        df['SERIAL NO'] = sheetname_abr + pd.to_datetime(df['DATE']).dt.strftime('%y%m%d') + df['SHIFT'].astype(str).str.replace("-", "").replace(" ","")   
         # Append the modified dataframe to the list
         dfs_list.append(df)
 
