@@ -33,6 +33,7 @@ def excel_to_dataframes(uploaded_file, sheetnames):
         for col in df.columns:
             df[f'{col}-VALIDATE'] = True
         df['SHIFT START'] = np.nan
+        df["CALCULATION-VALIDATE"] = True
         df['SHIFT END'] = np.nan
         dfs_dict[sheet_name] = df
     
@@ -97,29 +98,33 @@ def validate_hours(df):
     for index, row in df.iterrows():
         shift_value = row['SHIFT']
         hours_value = row['HOURS']
+
+        try:
         # Check if the shift value is in the correct format "HHMM-HHMM"
-        if not isinstance(shift_value, str) or not len(shift_value) == 9 or not shift_value[4] == '-':
-            # If the shift value is not in the correct format, set hours-validate to False for this row
-            df.at[index, 'HOURS-VALIDATE'] = False
-            indices.append(index)
-        else:
-            # If the shift value is in the correct format, calculate the hours worked
-            start_hour, end_hour = shift_value.split('-')
-            start_hour = int(start_hour[:2]) + int(start_hour[2:]) / 60
-            end_hour = int(end_hour[:2]) + int(end_hour[2:]) / 60
-            hours_worked = end_hour - start_hour
-            if hours_worked<0:
-                hours_worked = 24 + hours_worked
-            # Check if the calculated hours match the value in the HOURS column
-            if hours_worked != hours_value:  # Allowing for small floating point differences
-                # If the calculated hours do not match, assign the correct value
-                #df.at[index, 'HOURS'] = hours_worked
+            if not isinstance(shift_value, str) or not len(shift_value) == 9 or not shift_value[4] == '-':
+                # If the shift value is not in the correct format, set hours-validate to False for this row
+                df.at[index, 'HOURS-VALIDATE'] = False
                 indices.append(index)
-                # Set hours-validate to False for this row
-                df.at[index, 'COST-VALIDATE'] = False
             else:
-                # If the calculated hours match, set hours-validate to True for this row
-                df.at[index, 'HOURS-VALIDATE'] = True
+                # If the shift value is in the correct format, calculate the hours worked
+                start_hour, end_hour = shift_value.split('-')
+                start_hour = int(start_hour[:2]) + int(start_hour[2:]) / 60
+                end_hour = int(end_hour[:2]) + int(end_hour[2:]) / 60
+                hours_worked = end_hour - start_hour
+                if hours_worked<0:
+                    hours_worked = 24 + hours_worked
+                # Check if the calculated hours match the value in the HOURS column
+                if hours_worked != hours_value:  # Allowing for small floating point differences
+                    # If the calculated hours do not match, assign the correct value
+                    #df.at[index, 'HOURS'] = hours_worked
+                    indices.append(index)
+                    # Set hours-validate to False for this row
+                    df.at[index, 'CALCULATION-VALIDATE'] = False
+                else:
+                    # If the calculated hours match, set hours-validate to True for this row
+                    df.at[index, 'HOURS-VALIDATE'] = True
+        except:
+            df.at[index, 'HOURS-VALIDATE'] = False
     
     return df, indices
 
@@ -137,7 +142,7 @@ def validate_rate(df):
             if rate_value == cost_value or type(rate_value)==str:
                 # If rate equals cost but hours is not 1, set rate-validate to False for this row
                 indices.append(index)
-                df.at[index, 'RATE-VALIDATE'] = False
+                df.at[index, 'CALCULATION-VALIDATE'] = False
             else:
                 # Otherwise, set rate-validate to True for this row
                 df.at[index, 'RATE-VALIDATE'] = True
@@ -159,7 +164,7 @@ def validate_cost(df):
             expected_cost = rate_value * hours_value
             if expected_cost != cost_value:
                 indices.append(index)
-                df.at[index, 'COST-VALIDATE'] = False
+                df.at[index, 'CALCULATION-VALIDATE'] = False
             else:
                 df.at[index, 'COST-VALIDATE'] = True
         except:
