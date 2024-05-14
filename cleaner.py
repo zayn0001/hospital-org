@@ -1,12 +1,21 @@
-# %%
+from openpyxl import load_workbook
 import pandas as pd
-import warnings
-warnings.filterwarnings('ignore')
 import numpy as np
 from datetime import datetime
 
-# %%
 
+def convert(file):
+    wb = load_workbook(file)
+    sheet_names = wb.sheetnames
+    dfdict = excel_to_dataframes(uploaded_file=file, sheetnames=sheet_names)
+    cleaned_dfdict = validate_all(dfdict=dfdict)
+    merged = newindex(dfdict=cleaned_dfdict)
+    validate_columns = merged.columns[merged.columns.str.endswith('-VALIDATE')]
+
+    # Flip boolean values in the selected columns
+    merged[validate_columns] = ~merged[validate_columns]  
+    json_data = merged.to_json(orient='records')  
+    return json_data
 
 
 def excel_to_dataframes(uploaded_file, sheetnames):

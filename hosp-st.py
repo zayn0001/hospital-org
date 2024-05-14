@@ -17,7 +17,7 @@ def load_data(file):
     sheet_names = wb.sheetnames
     dfdict = cleaner.excel_to_dataframes(uploaded_file=file, sheetnames=sheet_names)
     cleaned_dfdict = cleaner.validate_all(dfdict=dfdict)
-    merged = cleaner.newindex(dfdict=dfdict)
+    merged = cleaner.newindex(dfdict=cleaned_dfdict)
     validate_columns = merged.columns[merged.columns.str.endswith('-VALIDATE')]
 
     # Flip boolean values in the selected columns
