@@ -19,7 +19,7 @@ def load_data(file):
     cleaned_dfdict = cleaner.validate_all(dfdict=dfdict)
     merged = cleaner.newindex(dfdict=cleaned_dfdict)
     validate_columns = merged.columns[merged.columns.str.endswith('-VALIDATE')]
-
+    print(validate_columns)
     # Flip boolean values in the selected columns
     merged[validate_columns] = ~merged[validate_columns]    
     return merged
@@ -42,8 +42,7 @@ def main():
             href = f'<a href="data:application/json;base64,{b64}" download="{filename}">Download JSON file</a>'
             return href
         
-
-        st.write(json_data[0])
+        st.write(merged.iloc[120])
         st.markdown(download_json(json_data, 'data.json'), unsafe_allow_html=True)
 
         
