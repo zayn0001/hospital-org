@@ -1,3 +1,4 @@
+import re
 from openpyxl import load_workbook
 import pandas as pd
 import numpy as np
@@ -18,7 +19,7 @@ def convert(file):
     return json_data
 
 
-def excel_to_dataframes(uploaded_file, sheetnames):
+def excel_to_dataframes(uploaded_file, sheetnames, restrict=None):
     
     dfs_dict = {}
     
@@ -44,8 +45,9 @@ def excel_to_dataframes(uploaded_file, sheetnames):
         for col in df.columns:
             df[f'{col}-VALIDATE'] = True
         df['SHIFT START'] = np.nan
-        df["HOSPITAL"] = sheet_name
-        df["STATE"] = get_state(sheet_name)
+        df['GRADE'] = np.nan
+        df['SENIORITY'] = np.nan
+        df["STATE"],df["HOSPITAL"] = get_state(df, sheet_name, restrict)
         df["CALCULATION-VALIDATE"] = True
         df['SHIFT END'] = np.nan
         dfs_dict[sheet_name] = df
@@ -53,12 +55,43 @@ def excel_to_dataframes(uploaded_file, sheetnames):
     return dfs_dict
 
 
-def get_state(hosp_name):
+def get_state(data, sheetname, restrict):
+    address_pattern = re.compile(r'address.*')
+    address = ""
+    for column in data.columns:
+        for index, value in enumerate(data[column]):
+            if isinstance(value, str):
+                match = address_pattern.search(value)
+                if match:
+                    address = match.group()
+                    address = address.split(":")[-1].strip()
+                    print(f'Extracted address: {address}')
+                    print(f'Column: {column}, Row: {index}')
+
     df = pd.read_csv("data/hospstate.csv")
-    req = df[["hospital-name","state"]]
-    bestmatch = process.extractOne(hosp_name, req["hospital-name"])
-    state_map = dict(zip(req['hospital-name'], req['state']))
-    return state_map[bestmatch[0]]
+    print(restrict)
+    if restrict[0]:
+        df = df[df["hospital-type"]==restrict[0]]
+    if restrict[1]:    
+        df = df[df["state"]==restrict[1]]
+
+    req = df[["hospital-name","state","geo-address"]]
+    print(address)
+    if address!="":
+
+        bestmatchadd = process.extractOne(address, req["geo-address"])
+        name_map = dict(zip(req['geo-address'], req['hospital-name']))
+        state_map = dict(zip(req['hospital-name'], req['state']))
+        return state_map[name_map[bestmatchadd[0]]],name_map[bestmatchadd[0]]
+    else:
+
+        if sheetname == "MATER MENTAL HEALTH L2":
+            sheetname = "Hunter New England Mater Mental Health Service"
+        bestmatchadd = process.extractOne(sheetname.lower(), req["hospital-name"])
+        state_map = dict(zip(req['hospital-name'], req['state']))
+        print(state_map[bestmatchadd[0]],bestmatchadd[0])
+
+        return state_map[bestmatchadd[0]],bestmatchadd[0]
 
 
 
@@ -87,7 +120,10 @@ def validate_shift(df):
     indices = []
     for index, row in df.iterrows():
         shift_value = row['SHIFT']
-        
+        shift_value = shift_value.replace(" ","")
+        if len(shift_value)==8:
+            shift_value = "0"+shift_value
+        df.at[index, 'SHIFT'] = shift_value
         # Clean the shift value and split it into start and end times
         try:
             shift_value = str(shift_value).replace(" ","")
@@ -124,7 +160,6 @@ def validate_shift(df):
 
 
         except Exception as e:
-            print(e)
             df.at[index, 'SHIFT-VALIDATE'] = False
             indices.append(index)
 
@@ -137,7 +172,16 @@ def validate_hours(df):
     for index, row in df.iterrows():
         shift_value = row['SHIFT']
         hours_value = row['HOURS']
+        if type(shift_value)==int and type(hours_value)==str:
+            temp = df.at[index, 'SHIFT']
+            df.at[index, 'SHIFT'] = df.at[index, 'HOURS']
+            df.at[index, 'HOURS'] = temp
+            shift_value = row['HOURS']
+            hours_value = row['SHIFT']
 
+        shift_value = shift_value.replace(" ","")
+        if len(shift_value)==8:
+            shift_value = "0"+shift_value
         try:
         # Check if the shift value is in the correct format "HHMM-HHMM"
             if not isinstance(shift_value, str) or not len(shift_value) == 9 or not shift_value[4] == '-':
@@ -146,14 +190,14 @@ def validate_hours(df):
                 indices.append(index)
             else:
                 # If the shift value is in the correct format, calculate the hours worked
-                start_hour, end_hour = shift_value.split('-')
                 start_hour = int(start_hour[:2]) + int(start_hour[2:]) / 60
                 end_hour = int(end_hour[:2]) + int(end_hour[2:]) / 60
                 hours_worked = end_hour - start_hour
-                if hours_worked<0:
+                if hours_worked<=0:
                     hours_worked = 24 + hours_worked
                 # Check if the calculated hours match the value in the HOURS column
                 if hours_worked != hours_value:  # Allowing for small floating point differences
+                    df.at[index, 'HOURS'] = hours_worked
                     # If the calculated hours do not match, assign the correct value
                     #df.at[index, 'HOURS'] = hours_worked
                     indices.append(index)
@@ -162,7 +206,9 @@ def validate_hours(df):
                 else:
                     # If the calculated hours match, set hours-validate to True for this row
                     df.at[index, 'HOURS-VALIDATE'] = True
-        except:
+        except Exception as e:
+            print(e)
+            print(row)
             df.at[index, 'HOURS-VALIDATE'] = False
     
     return df, indices
@@ -170,24 +216,52 @@ def validate_hours(df):
 
 # %%
 def validate_rate(df):
+
+    def remove_non_digits_and_period(input_string):
+        # Use a regular expression to find all digits and periods
+        result = re.findall(r'[0-9.]', input_string)
+        # Join the result list into a single string
+        cleaned_string = ''.join(result)
+        return cleaned_string
+    
+    def extract_first_number_between_dollar_and_non_digit(input_string):
+    # Use a regular expression to find the first occurrence of a number between '$' and the first non-digit character
+        match = re.search(r'\$(\d+)', input_string)
+        # If a match is found, return the number, otherwise return None
+        if match:
+            return match.group(1)
+        return input_string
+
     # Iterate through each row in the dataframe
     indices = []
     for index, row in df.iterrows():
         try:
             rate_value = row['RATE']
             cost_value = row['COST']
-            
+            if type(rate_value)==str:
+                rate_value = rate_value.replace(" ","")
+                rate_value = extract_first_number_between_dollar_and_non_digit(rate_value)
+                rate_value = remove_non_digits_and_period(rate_value)
+                rate_value = float(rate_value)
+                cost_value = rate_value
             # Check if rate equals cost and hours is not equal to 1
-            if rate_value == cost_value or type(rate_value)==str:
+            if type(rate_value)==str:                        # If rate equals cost but hours is not 1, set rate-validate to False for this row
+        # If rate equals cost but hours is not 1, set rate-validate to False for this row
                 # If rate equals cost but hours is not 1, set rate-validate to False for this row
                 indices.append(index)
                 df.at[index, 'CALCULATION-VALIDATE'] = False
+
+            if rate_value == cost_value:
+                df.at[index, "COST"] = cost_value
+                df.at[index, "RATE"] = round(df.at[index, "COST"] / df.at[index, "HOURS"],2)
             else:
                 # Otherwise, set rate-validate to True for this row
                 df.at[index, 'RATE-VALIDATE'] = True
-        except:
             indices.append(index)
             df.at[index, 'RATE-VALIDATE'] = False
+        except Exception as e:
+            print(e)
+            print(row)
     
     return df,indices
 
@@ -240,7 +314,18 @@ def validate_roles(df):
     # Iterate through each row in the dataframe
     for index, row in df.iterrows():
         role_value = row['ROLE']
+        if "cmo" in role_value.lower() or "registrar" in role_value.lower():
+            df.at[index, "GRADE"] = "Registrar"
+        elif "rmo" in role_value.lower():
+            df.at[index, "GRADE"] = "Resident"
+        else:
+            df.at[index, "GRADE"] = "Consultant"
+            
         try:
+            if "IC" in role_value:
+                df.at[index, "SENIORITY"] = "IC"
+            else:
+                df.at[index, "SENIORITY"] = "NON IC"
         # Check if role value is in the predefined list of valid roles
             if role_value.strip().upper() not in valid_roles:
                 # If role value is not in the predefined list, set roles-validate to False for this row
@@ -263,6 +348,8 @@ def validate_units(df):
     # Iterate through each row in the dataframe
     for index, row in df.iterrows():
         unit_value = row['UNIT']
+        if "MH" in row["UNIT"] or "Mental Health" in row["UNIT"]:
+            df.at[index, "UNIT"] = "PSYCH"
         try:
             # Check if unit value is in the predefined list of valid units
             if unit_value.strip().upper() not in valid_units:
