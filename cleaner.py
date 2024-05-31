@@ -54,7 +54,6 @@ def excel_to_dataframes(uploaded_file, sheetnames, restrict=None):
     
     return dfs_dict
 
-
 def get_state(data, sheetname, restrict):
     address_pattern = re.compile(r'address.*')
     address = ""
@@ -92,6 +91,17 @@ def get_state(data, sheetname, restrict):
         print(state_map[bestmatchadd[0]],bestmatchadd[0])
 
         return state_map[bestmatchadd[0]],bestmatchadd[0]
+    
+
+
+def get_position(unit):
+
+    req = {"Med":"General Medicine", "GP":"General Practice", "Surg":"Surgery", "ED":"Emergency Medicine", "ICU":"Intensive Care", "Paed":"Paediatrics", "Psych":"Psychiatry", "Anos":"Anaesthetics", "Rad":"Radiology", "O&G":"Obstetrics & Gynaecology", "Clin. Pharm":"Clinical Pharmacology", "Derm":"Dermatology", "Ad. Med":"Addiction", "Cardio":"Cardiology", "Clin. Gen":"Clinical Genetics", "Immuno":"Immunology & Allergy", "Endo":"Endocrinology", "Gastro":"Gastroenterology", "Haem":"Haemotology", "Geri":"Geriatric", "Renal":"Renal", "Nuc. Med":"Nuclear Medicine", "ID":"Infectious Disease"}
+    
+    bestmatchadd = process.extractOne(unit, req.keys())
+    
+    return req[bestmatchadd[0]]
+    
 
 
 
@@ -314,6 +324,7 @@ def validate_roles(df):
     # Iterate through each row in the dataframe
     for index, row in df.iterrows():
         role_value = row['ROLE']
+        
         if "cmo" in role_value.lower() or "registrar" in role_value.lower():
             df.at[index, "GRADE"] = "Registrar"
         elif "rmo" in role_value.lower():
@@ -350,6 +361,8 @@ def validate_units(df):
         unit_value = row['UNIT']
         if "MH" in row["UNIT"] or "Mental Health" in row["UNIT"]:
             df.at[index, "UNIT"] = "PSYCH"
+        else:
+            df.at[index, "UNIT"] = get_position(unit_value)
         try:
             # Check if unit value is in the predefined list of valid units
             if unit_value.strip().upper() not in valid_units:
@@ -390,6 +403,9 @@ def newindex(dfdict):
     merged_df = pd.concat(dfs_list, ignore_index=True)
     if len(set(sheetname_abrs)) != len(sheetname_abrs):
         print("not unique")
+    
+    merged_df.rename(columns={'UNIT': 'POSITION'}, inplace=True)
+
     return merged_df
 
 
