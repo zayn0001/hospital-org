@@ -70,9 +70,9 @@ def get_state(data, sheetname, restrict):
     df = pd.read_csv("data/hospstate.csv")
     print(restrict)
     if restrict[0]:
-        df = df[df["hospital-type"]==restrict[0]]
+        df = df[df["hospital-type"].str.lower()==restrict[0].lower()]
     if restrict[1]:    
-        df = df[df["state"]==restrict[1]]
+        df = df[df["state"].str.lower()==restrict[1].lower()]
 
     req = df[["hospital-name","state","geo-address"]]
     print(address)
