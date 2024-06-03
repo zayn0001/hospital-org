@@ -199,8 +199,10 @@ def validate_hours(df):
                 df.at[index, 'HOURS-VALIDATE'] = False
                 indices.append(index)
             else:
+                start_hour = shift_value.split("-")[0]
+                end_hour = shift_value.split("-")[1]
                 # If the shift value is in the correct format, calculate the hours worked
-                start_hour = int(shift_value[:2]) + int(shift_value[2:]) / 60
+                start_hour = int(start_hour[:2]) + int(start_hour[2:]) / 60
                 end_hour = int(end_hour[:2]) + int(end_hour[2:]) / 60
                 hours_worked = end_hour - start_hour
                 if hours_worked<=0:
@@ -217,6 +219,7 @@ def validate_hours(df):
                     # If the calculated hours match, set hours-validate to True for this row
                     df.at[index, 'HOURS-VALIDATE'] = True
         except Exception as e:
+            print("valisdaye hours")
             print(e)
             print(row)
             df.at[index, 'HOURS-VALIDATE'] = False
