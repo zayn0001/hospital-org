@@ -396,7 +396,11 @@ def newindex(dfdict):
         # Shorten the date and concatenate the sheet name with it
         sheetname_abr = "".join([x[0:3] for x in sheet_name.split(" ")])
         sheetname_abrs.append(sheetname_abr)
-        df['SERIAL NO'] = sheetname_abr + pd.to_datetime(df['DATE']).dt.strftime('%y%m%d') + df['SHIFT'].astype(str).str.replace("-", "").replace(" ","")   
+        try:
+            date = pd.to_datetime(df['DATE']).dt.strftime('%y%m%d')
+        except:
+            date = ""
+        df['SERIAL NO'] = sheetname_abr + date + df['SHIFT'].astype(str).str.replace("-", "").replace(" ","")   
         # Append the modified dataframe to the list
         dfs_list.append(df)
 
