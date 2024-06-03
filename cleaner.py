@@ -200,7 +200,7 @@ def validate_hours(df):
                 indices.append(index)
             else:
                 # If the shift value is in the correct format, calculate the hours worked
-                start_hour = int(start_hour[:2]) + int(start_hour[2:]) / 60
+                start_hour = int(shift_value[:2]) + int(shift_value[2:]) / 60
                 end_hour = int(end_hour[:2]) + int(end_hour[2:]) / 60
                 hours_worked = end_hour - start_hour
                 if hours_worked<=0:
