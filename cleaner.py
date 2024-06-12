@@ -265,8 +265,20 @@ def validate_rate(df):
                 df.at[index, 'CALCULATION-VALIDATE'] = False
 
             if rate_value == cost_value:
+                number_regex = r'\d+\.\d+|\d+'
+                # Find all matches of the regex in the input string
+                
                 df.at[index, "COST"] = cost_value
                 df.at[index, "RATE"] = round(df.at[index, "COST"] / df.at[index, "HOURS"],2)
+                try:
+                    df.at[index, "COST"] = re.findall(number_regex, df.at[index, "COST"])[0]
+                except:
+                    pass
+                try:
+                    df.at[index, "RATE"] = re.findall(number_regex, df.at[index, "RATE"])[0]
+                except:
+                    pass
+
             else:
                 # Otherwise, set rate-validate to True for this row
                 df.at[index, 'RATE-VALIDATE'] = True
