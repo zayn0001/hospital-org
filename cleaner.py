@@ -402,7 +402,7 @@ def newindex(dfdict):
         try:
             date = pd.to_datetime(df['DATE']).dt.strftime('%y%m%d')
         except:
-            date = ""
+            date = df['DATE']
         df['SERIAL NO'] = sheetname_abr + date + df['SHIFT'].astype(str).str.replace("-", "").replace(" ","")   
         # Append the modified dataframe to the list
         dfs_list.append(df)
