@@ -385,7 +385,6 @@ def validate_roles(df):
 
 
 def validate_units(df):
-    valid_units = ['ANAESTH', 'ED', 'FACILITY', 'ICU', 'MEDICAL', 'O & G', 'ONCOLOGY', 'ORTHO', 'PAEDS', 'PSYCH', 'SURGICAL', 'WARDS']
     indices = []
     # Iterate through each row in the dataframe
     for index, row in df.iterrows():
