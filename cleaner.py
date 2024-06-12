@@ -47,6 +47,7 @@ def excel_to_dataframes(uploaded_file, sheetnames, restrict=None):
         df['SHIFT START'] = np.nan
         df['GRADE'] = np.nan
         df['SENIORITY'] = np.nan
+        df['UNIT-EXTRAINFO'] = np.nan
         df["STATE"],df["HOSPITAL"] = get_state(df, sheet_name, restrict)
         df["CALCULATION-VALIDATE"] = True
         df['SHIFT END'] = np.nan
@@ -92,15 +93,22 @@ def get_state(data, sheetname, restrict):
 
         return state_map[bestmatchadd[0]],bestmatchadd[0]
     
+req = {"Med":"General Medicine", "GP":"General Practice", "Surg":"Surgery", "ED":"Emergency Medicine", "ICU":"Intensive Care", "Paed":"Paediatrics", "Psych":"Psychiatry", "Anos":"Anaesthetics", "Rad":"Radiology", "O&G":"Obstetrics & Gynaecology", "Clin. Pharm":"Clinical Pharmacology", "Derm":"Dermatology", "Ad. Med":"Addiction", "Cardio":"Cardiology", "Clin. Gen":"Clinical Genetics", "Immuno":"Immunology & Allergy", "Endo":"Endocrinology", "Gastro":"Gastroenterology", "Haem":"Haemotology", "Geri":"Geriatric", "Renal":"Renal", "Nuc. Med":"Nuclear Medicine", "ID":"Infectious Disease"}
+reql = {"General Surgery":["General Surgery", "SURG"], "Anaesthetics":["Anaesthetics", "Anaes", "theatres"], "Emergency Medicine":["Emergency Medicine", "ED", "FAST TRACK"], "General Medicine":["General Medicine", "MEDICINE", "MEDICAL", "GEN MED", "VARIOUS MEDICINE SPECIALTIES"], "Geriatrics":["Geriatrics"], "Other":["ARMIDALE", "CLINIC", "GLEN INNES", "GP", "HUNTER VALLEY", "INVERELL", "WARDS"], "Intensive Care":["Intensive Care", "ICU"], "Psychiatry":["MENTAL HEALTH", "TAREE", "MH"], "Oncology":["Oncology", "ONC", "ONC+PALL CARE"], "Obstetrics & Gynaecology":["O & G", "O&G", "OBSTETRICS"], "Orthopaedics":["ORTHO", "Orthopaedics"], "Paediatrics":["Paediatrics", "PAEDS"], "Plastics":["PLASTICS"], "Rehab":["REHAB"], "Urgent Care":["URGENT CARE CENTRE", "Urgent Care"]}
+    # New dictionary to be created
+transformed_dict = {}
 
+# Loop through the original dictionary
+for key, values in reql.items():
+    for value in values:
+        transformed_dict[value] = key
 
 def get_position(unit):
 
-    req = {"Med":"General Medicine", "GP":"General Practice", "Surg":"Surgery", "ED":"Emergency Medicine", "ICU":"Intensive Care", "Paed":"Paediatrics", "Psych":"Psychiatry", "Anos":"Anaesthetics", "Rad":"Radiology", "O&G":"Obstetrics & Gynaecology", "Clin. Pharm":"Clinical Pharmacology", "Derm":"Dermatology", "Ad. Med":"Addiction", "Cardio":"Cardiology", "Clin. Gen":"Clinical Genetics", "Immuno":"Immunology & Allergy", "Endo":"Endocrinology", "Gastro":"Gastroenterology", "Haem":"Haemotology", "Geri":"Geriatric", "Renal":"Renal", "Nuc. Med":"Nuclear Medicine", "ID":"Infectious Disease"}
+
+    bestmatchadd = process.extractOne(unit, transformed_dict.keys())
     
-    bestmatchadd = process.extractOne(unit, req.keys())
-    
-    return req[bestmatchadd[0]]
+    return transformed_dict[bestmatchadd[0]]
     
 
 
@@ -130,6 +138,12 @@ def validate_shift(df):
     indices = []
     for index, row in df.iterrows():
         shift_value = row['SHIFT']
+        if "multiple dates" in shift_value:
+            df.at[index, "UNIT-EXTRAINFO"] = "multiple dates"
+        if shift_value.startswith("Start"):
+            shift_value = shift_value[-4:] + "-0000"
+        if shift_value.startswith("Until"):
+            shift_value = "0000-" + shift_value[-4:]
         shift_value = shift_value.replace(" ","")
         if len(shift_value)==8:
             shift_value = "0"+shift_value
@@ -340,12 +354,14 @@ def validate_roles(df):
     for index, row in df.iterrows():
         role_value = row['ROLE']
         
-        if "cmo" in role_value.lower() or "registrar" in role_value.lower():
+        if "cmo" in role_value.lower() or "reg" in role_value.lower():
             df.at[index, "GRADE"] = "Registrar"
         elif "rmo" in role_value.lower():
             df.at[index, "GRADE"] = "Resident"
-        else:
+        elif "gp" in role_value.lower() or "vmo" in role_value.lower() or "vno" in role_value.lower():
             df.at[index, "GRADE"] = "Consultant"
+        else:
+            df.at[index, "GRADE"] = "Other"
             
         try:
             if "IC" in role_value:
@@ -373,22 +389,11 @@ def validate_units(df):
     indices = []
     # Iterate through each row in the dataframe
     for index, row in df.iterrows():
-        unit_value = row['UNIT']
-        if "MH" in row["UNIT"] or "Mental Health" in row["UNIT"]:
-            df.at[index, "UNIT"] = "PSYCH"
-        else:
-            df.at[index, "UNIT"] = get_position(unit_value)
         try:
-            # Check if unit value is in the predefined list of valid units
-            if unit_value.strip().upper() not in valid_units:
-                # If unit value is not in the predefined list, set unit-validate to False for this row
-                indices.append(index)
-                df.at[index, 'UNIT-VALIDATE'] = False
-            else:
-                # Otherwise, set unit-validate to True for this row
-                df.at[index, 'UNIT-VALIDATE'] = True
+            unit_value = row['UNIT']
+            df.at[index, "UNIT"] = get_position(unit_value)
         except:
-            df.at[index, 'UNIT-VALIDATE'] = False
+            pass
     
     return df, indices
 
