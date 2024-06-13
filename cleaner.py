@@ -165,21 +165,22 @@ def validate_shift(df):
                 # If the shift value is in the correct format, set shift-validate to True for this row
                 df.at[index, 'SHIFT-VALIDATE'] = True
                 
-                df.at[index, 'SHIFT START'] = datetime.strptime(shift_start, "%H%M").time()
-                df.at[index, 'SHIFT END'] = datetime.strptime(shift_end, "%H%M").time()
+                df.at[index, 'SHIFT START'] = datetime.strptime(shift_start, "%H%M%S").time()
+                df.at[index, 'SHIFT END'] = datetime.strptime(shift_end, "%H%M%S").time()
                 # Set the 'SHIFT START' and 'SHIFT END' values
+                date_obj = datetime.strptime(df.at[index, 'DATE'],"%Y-%m-%d").strftime("%Y-%m-%d")
                 if df.at[index, 'SHIFT START']>=df.at[index, 'SHIFT END']:
                     date_obj = datetime.strptime(df.at[index, 'DATE'],"%Y-%m-%d")
                     # Step 2: Add one day to the datetime object
                     next_date_obj = date_obj + timedelta(days=1)
 
                     # If you need the next date as a string in the same format:
-                    next_date_str = next_date_obj.strftime("%d:%m:%Y")
+                    next_date_str = next_date_obj.strftime("%Y-%m-%d")
 
-                    df.at[index, 'SHIFT END'] = next_date_str + ":" + str(df.at[index, 'SHIFT END'])
+                    df.at[index, 'SHIFT END'] = next_date_str + "T" + str(df.at[index, 'SHIFT END'])
                 else:
-                    df.at[index, 'SHIFT END'] = ":".join(str(df.at[index, 'DATE']).split("-")[::-1]) + ":" + str(df.at[index, 'SHIFT END'])
-                df.at[index, 'SHIFT START'] = ":".join(str(df.at[index, 'DATE']).split("-")[::-1]) + ":" + str(df.at[index, 'SHIFT START'])
+                    df.at[index, 'SHIFT END'] = date_obj + "T" + str(df.at[index, 'SHIFT END'])
+                df.at[index, 'SHIFT START'] = date_obj + "T" + str(df.at[index, 'SHIFT START'])
                 
 
 
