@@ -169,7 +169,7 @@ def validate_shift(df):
                 df.at[index, 'SHIFT END'] = datetime.strptime(shift_end, "%H%M%S").time()
                 # Set the 'SHIFT START' and 'SHIFT END' values
                 date_obj = datetime.strptime(df.at[index, 'DATE'],"%Y-%m-%d").strftime("%Y-%m-%d")
-                if df.at[index, 'SHIFT START']>=df.at[index, 'SHIFT END']:
+                if df.at[index, 'SHIFT START']>= df.at[index, 'SHIFT END']:
                     date_obj = datetime.strptime(df.at[index, 'DATE'],"%Y-%m-%d")
                     # Step 2: Add one day to the datetime object
                     next_date_obj = date_obj + timedelta(days=1)
@@ -178,15 +178,19 @@ def validate_shift(df):
                     next_date_str = next_date_obj.strftime("%Y-%m-%d")
 
                     df.at[index, 'SHIFT END'] = next_date_str + "T" + str(df.at[index, 'SHIFT END'])
+                    df.at[index, 'SHIFT START'] = date_obj.strftime("%Y-%m-%d") + "T" + str(df.at[index, 'SHIFT START'])
                 else:
                     df.at[index, 'SHIFT END'] = date_obj + "T" + str(df.at[index, 'SHIFT END'])
-                df.at[index, 'SHIFT START'] = date_obj + "T" + str(df.at[index, 'SHIFT START'])
+                    df.at[index, 'SHIFT START'] = date_obj + "T" + str(df.at[index, 'SHIFT START'])
                 
 
 
         except Exception as e:
             df.at[index, 'SHIFT-VALIDATE'] = False
             indices.append(index)
+            print("-------------------------------------------------------------")
+            print(index, row, e)
+            print("-------------------------------------------------------------")
 
     return df,indices
 
